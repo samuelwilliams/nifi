@@ -14,3 +14,4 @@
 # limitations under the License.
 org.apache.nifi.processors.smb.PutSmbFile
 org.apache.nifi.processors.smb.GetSmbFile
+org.apache.nifi.processors.smb.ListSmbDirectory
