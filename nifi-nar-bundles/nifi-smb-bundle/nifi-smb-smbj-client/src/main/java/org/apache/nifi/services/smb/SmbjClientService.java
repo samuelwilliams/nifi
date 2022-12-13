@@ -112,6 +112,15 @@ class SmbjClientService implements SmbClientService {
         }
     }
 
+
+    public void deleteFile(String fileName) throws IOException {
+        try {
+            share.rm(fileName);
+        } catch (SMBApiException a) {
+            throw new SmbException(a.getMessage(), a.getStatusCode(), a);
+        }
+    }
+
     private SmbListableEntity buildSmbListableEntity(FileIdBothDirectoryInformation info, String path, URI serviceLocation) {
         return SmbListableEntity.builder()
                 .setName(info.getFileName())

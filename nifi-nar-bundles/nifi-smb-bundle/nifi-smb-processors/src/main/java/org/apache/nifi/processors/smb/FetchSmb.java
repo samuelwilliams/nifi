@@ -16,16 +16,6 @@
  */
 package org.apache.nifi.processors.smb;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableSet;
-import static org.apache.nifi.expression.ExpressionLanguageScope.FLOWFILE_ATTRIBUTES;
-import static org.apache.nifi.processor.util.StandardValidators.ATTRIBUTE_EXPRESSION_LANGUAGE_VALIDATOR;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import org.apache.nifi.annotation.behavior.InputRequirement;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
 import org.apache.nifi.annotation.behavior.WritesAttributes;
@@ -43,6 +33,15 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.services.smb.SmbClientProviderService;
 import org.apache.nifi.services.smb.SmbClientService;
 import org.apache.nifi.services.smb.SmbException;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static org.apache.nifi.expression.ExpressionLanguageScope.FLOWFILE_ATTRIBUTES;
+import static org.apache.nifi.processor.util.StandardValidators.ATTRIBUTE_EXPRESSION_LANGUAGE_VALIDATOR;
 
 @InputRequirement(InputRequirement.Requirement.INPUT_REQUIRED)
 @Tags({"samba", "smb", "cifs", "files", "fetch"})
@@ -74,24 +73,32 @@ public class FetchSmb extends AbstractProcessor {
             .required(true)
             .identifiesControllerService(SmbClientProviderService.class)
             .build();
+
+    public static final PropertyDescriptor KEEP_FILE_AFTER_FETCH = new Builder()
+            .name("keep-file-after-fetch")
+            .displayName("Keep File After Fetch")
+            .description("If true, the file will remain on the remote server after being fetched. If false, the file" +
+                    "will be deleted after being fetched.")
+            .required(true)
+            .expressionLanguageSupported(FLOWFILE_ATTRIBUTES)
+            .defaultValue("true")
+            .build();
     public static final Relationship REL_SUCCESS =
             new Relationship.Builder()
                     .name("success")
                     .description("A flowfile will be routed here for each successfully fetched file.")
                     .build();
     public static final Relationship REL_FAILURE =
-            new Relationship.Builder().name("failure")
-                    .description(
-                            "A flowfile will be routed here when failed to fetch its content.")
+            new Relationship.Builder()
+                    .name("failure")
+                    .description("A flowfile will be routed here when failed to fetch its content.")
                     .build();
-    public static final Set<Relationship> RELATIONSHIPS = unmodifiableSet(new HashSet<>(asList(
-            REL_SUCCESS,
-            REL_FAILURE
-    )));
+    public static final Set<Relationship> RELATIONSHIPS = Set.of(REL_SUCCESS, REL_FAILURE);
     public static final String UNCATEGORIZED_ERROR = "-2";
     private static final List<PropertyDescriptor> PROPERTIES = asList(
             SMB_CLIENT_PROVIDER_SERVICE,
-            REMOTE_FILE
+            REMOTE_FILE,
+            KEEP_FILE_AFTER_FETCH
     );
 
     @Override
@@ -109,15 +116,16 @@ public class FetchSmb extends AbstractProcessor {
         final SmbClientProviderService clientProviderService =
                 context.getProperty(SMB_CLIENT_PROVIDER_SERVICE).asControllerService(SmbClientProviderService.class);
 
+
         try (SmbClientService client = clientProviderService.getClient()) {
             fetchAndTransfer(session, context, client, flowFile);
+            deleteFile(context, client, flowFile);
         } catch (Exception e) {
             getLogger().error("Couldn't connect to SMB.", e);
             flowFile = session.putAttribute(flowFile, ERROR_CODE_ATTRIBUTE, getErrorCode(e));
             flowFile = session.putAttribute(flowFile, ERROR_MESSAGE_ATTRIBUTE, e.getMessage());
             session.transfer(flowFile, REL_FAILURE);
         }
-
     }
 
     @Override
@@ -138,6 +146,20 @@ public class FetchSmb extends AbstractProcessor {
             flowFile = session.putAttribute(flowFile, ERROR_CODE_ATTRIBUTE, getErrorCode(e));
             flowFile = session.putAttribute(flowFile, ERROR_MESSAGE_ATTRIBUTE, getErrorMessage(e));
             session.transfer(flowFile, REL_FAILURE);
+        }
+    }
+
+    private void deleteFile(ProcessContext context, SmbClientService client, FlowFile flowFile) {
+        if(context.getProperty(KEEP_FILE_AFTER_FETCH).asBoolean()) {
+            return;
+        }
+        final Map<String, String> attributes = flowFile.getAttributes();
+        final String filename = context.getProperty(REMOTE_FILE)
+                .evaluateAttributeExpressions(attributes).getValue();
+        try {
+            client.deleteFile(filename);
+        } catch (Exception e) {
+            getLogger().error("Could not delete file {}.", filename, e);
         }
     }
 

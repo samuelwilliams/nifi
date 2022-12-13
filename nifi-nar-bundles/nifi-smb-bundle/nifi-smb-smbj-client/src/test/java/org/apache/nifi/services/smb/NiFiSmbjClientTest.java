@@ -57,7 +57,6 @@ class NiFiSmbjClientTest {
         verify(share).mkdir("directory/path");
         verify(share).mkdir("directory/path/to");
         verify(share).mkdir("directory/path/to/create");
-
     }
 
 }

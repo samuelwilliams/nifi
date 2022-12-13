@@ -30,4 +30,6 @@ public interface SmbClientService extends AutoCloseable {
     void createDirectory(String path);
 
     void readFile(String fileName, OutputStream outputStream) throws IOException;
+
+    void deleteFile(String fileName) throws IOException;
 }
