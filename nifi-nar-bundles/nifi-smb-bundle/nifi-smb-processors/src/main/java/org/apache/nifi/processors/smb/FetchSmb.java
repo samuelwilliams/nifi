@@ -80,8 +80,8 @@ public class FetchSmb extends AbstractProcessor {
             .description("If true, the file will remain on the remote server after being fetched. If false, the file" +
                     "will be deleted after being fetched.")
             .required(true)
-            .expressionLanguageSupported(FLOWFILE_ATTRIBUTES)
             .defaultValue("true")
+            .allowableValues("true", "false")
             .build();
     public static final Relationship REL_SUCCESS =
             new Relationship.Builder()
